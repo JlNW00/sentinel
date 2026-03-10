@@ -1,0 +1,7 @@
+[Unit]
+Description=Sentinel Watchdog
+After=openclaw-sentinel.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/sentinel-healthcheck
