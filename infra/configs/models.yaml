@@ -1,7 +1,209 @@
-# Model Hierarchy Configuration
+# ============================================================
+# SENTINEL — MODEL HIERARCHY CONFIGURATION
+# ============================================================
+# Defines which LLM handles which task. Swap models without
+# touching agent code — just edit this file.
+#
+# Primary: Ollama (local, uncensored) — handles 95% of work
+# Escalation: Claude API (optional) — complex multi-step analysis
+# ============================================================
+
+# -----------------------------------------------------------
+# PRIMARY MODEL (Local via Ollama)
+# -----------------------------------------------------------
+# Obliteratus is an abliterated (uncensored) model that won't
+# refuse to analyze scam patterns or generate blunt assessments.
+# If Obliteratus isn't available, dolphin-mistral is a solid fallback.
 primary:
   provider: ollama
+  host: "${OLLAMA_HOST:-http://localhost:11434}"
   model: obliteratus
+  fallback_model: dolphin-mistral
+  context_length: 8192
+  temperature: 0.3          # Low temp for analytical accuracy
+  top_p: 0.9
+  repeat_penalty: 1.1
+  timeout_seconds: 120
+  max_retries: 3
+
+# -----------------------------------------------------------
+# ESCALATION MODEL (Cloud API — Optional)
+# -----------------------------------------------------------
+# Used when primary model can't handle complexity:
+# - Multi-hop wallet tracing narratives
+# - Complex pattern synthesis across 10+ data points
+# - Long-form investigation threads (>2000 words)
+#
+# Set CLAUDE_API_KEY in .env to enable. If not set, primary
+# handles everything (slightly lower quality on complex tasks).
 escalation:
-  provider: claude
+  provider: anthropic
   model: claude-sonnet-4-20250514
+  api_key: "${CLAUDE_API_KEY}"
+  max_tokens: 4096
+  temperature: 0.2          # Even lower temp for forensic precision
+  timeout_seconds: 60
+  enabled: false             # Set to true when CLAUDE_API_KEY is configured
+
+# -----------------------------------------------------------
+# MODEL ROUTER — Which model handles which task
+# -----------------------------------------------------------
+# Maps task types to models. "primary" = local Ollama,
+# "escalation" = Claude API, "auto" = try primary first,
+# escalate if output quality is insufficient.
+router:
+  # Core analysis tasks — always local (fast, uncensored)
+  token_scoring:          primary
+  wallet_analysis:        primary
+  holder_concentration:   primary
+  liquidity_check:        primary
+  mev_detection:          primary
+  
+  # Content generation — local with humanizer skill
+  tweet_generation:       primary
+  thread_composition:     primary
+  educational_content:    primary
+  engagement_reply:       primary
+  
+  # Complex synthesis — escalate if available
+  investigation_thread:   auto        # Try primary, escalate for complex cases
+  wallet_narrative:       auto        # Multi-hop tracing needs more reasoning
+  pattern_synthesis:      auto        # Cross-referencing many data points
+  weekly_report:          escalation  # Long-form, benefits from Claude
+  
+  # Developer profiling — local is fine
+  github_analysis:        primary
+  social_profiling:       primary
+  credibility_scoring:    primary
+  
+  # System tasks — always local
+  health_diagnostic:      primary
+  self_assessment:        primary
+  memory_compaction:      primary
+
+# -----------------------------------------------------------
+# AUTO-ESCALATION RULES
+# -----------------------------------------------------------
+# When router says "auto", these rules determine when to escalate:
+auto_escalation:
+  # Escalate if primary model output is too short for the task
+  min_output_length:
+    investigation_thread: 500    # chars — threads should be substantial
+    wallet_narrative: 300
+    pattern_synthesis: 400
+  
+  # Escalate if primary model confidence is low
+  # (self-reported confidence in structured output)
+  min_confidence_threshold: 0.6
+  
+  # Escalate if task involves more than N entities
+  entity_count_threshold: 8      # More than 8 wallets/tokens = complex
+  
+  # Never escalate these (even in auto mode) — keep local
+  never_escalate:
+    - token_scoring
+    - wallet_analysis
+    - tweet_generation
+    - health_diagnostic
+
+# -----------------------------------------------------------
+# PROMPT TEMPLATES
+# -----------------------------------------------------------
+# Task-specific system prompts. These are injected before the
+# task data. Keep them focused and concise to save context window.
+prompts:
+  token_scoring: |
+    You are Sentinel's forensic scoring engine. Analyze the following token data
+    and produce a risk score from 0-100 with a breakdown by category.
+    
+    Scoring weights:
+    - Liquidity lock status: 20%
+    - Holder concentration: 20%
+    - Deployer wallet history: 20%
+    - Behavioral signals (wash trading, sniping): 20%
+    - Metadata quality (website, socials, audit): 20%
+    
+    Output format:
+    RISK_SCORE: [0-100]
+    CONFIDENCE: [0-100]
+    TIER: [OBSERVATION|RED_FLAGS|HIGH_PROBABILITY|CONFIRMED]
+    BREAKDOWN:
+      liquidity: [score] — [reason]
+      holders: [score] — [reason]
+      deployer: [score] — [reason]
+      behavioral: [score] — [reason]
+      metadata: [score] — [reason]
+    EVIDENCE: [list of specific on-chain findings]
+    SUMMARY: [2-3 sentence assessment in Sentinel's voice]
+
+  investigation_thread: |
+    You are Sentinel composing a Twitter investigation thread. Write in Sentinel's
+    voice: cold, precise, evidence-first. No hype, no filler.
+    
+    Thread format:
+    1/ Opening hook — what was found, why it matters
+    2-5/ Evidence chain — each tweet presents one piece of evidence with tx hash or wallet address
+    6/ Connection to known patterns or previous rugs (if any)
+    7/ Risk assessment with confidence tier
+    8/ Closing — what to watch for next
+    
+    Rules:
+    - Each tweet must be under 280 characters
+    - Include at least 2 transaction hashes or wallet addresses
+    - Use confidence-gated language matching the risk score
+    - Never say "SCAM" — use "fraudulent activity" or "rug pull"
+    - Never give financial advice
+
+  wallet_narrative: |
+    You are Sentinel tracing a wallet cluster. Given the following wallet
+    relationships and transaction data, produce a narrative explaining
+    the connection between wallets.
+    
+    Focus on:
+    - Fund flow direction and timing
+    - Common counterparties
+    - Pattern matching with known rug methodologies
+    - Confidence level in the cluster identification
+    
+    Output a clear, evidence-backed narrative that could be posted as
+    a thread or stored in the knowledge graph.
+
+  developer_profile: |
+    You are Sentinel's developer profiling engine. Analyze the following
+    GitHub, LinkedIn, and social media data to assess developer credibility.
+    
+    Scoring criteria:
+    - GitHub account age and activity (is it fresh/empty?)
+    - Code quality and originality (forked vs original repos)
+    - Contribution history (consistent or sudden burst before launch?)
+    - LinkedIn profile legitimacy (real person with verifiable history?)
+    - Social media patterns (bot-like behavior? previous project promotions?)
+    - Team coherence (do claimed team members actually exist?)
+    
+    Output:
+    CREDIBILITY_SCORE: [0-100]
+    RED_FLAGS: [list]
+    GREEN_FLAGS: [list]
+    ASSESSMENT: [1-2 sentence summary]
+
+  educational_content: |
+    You are Sentinel creating educational content for crypto Twitter.
+    Topic will be provided. Write in Sentinel's voice but slightly warmer
+    than investigation mode — you're teaching, not accusing.
+    
+    Format: Twitter thread (5-8 tweets, each under 280 chars)
+    Include: real examples (anonymized if needed), actionable steps,
+    tools the reader can use to verify themselves.
+    
+    Never: give financial advice, shill tools/products, use hype language.
+
+  self_assessment: |
+    You are Sentinel performing a self-assessment of your recent performance.
+    Review the following investigation outcomes and identify:
+    
+    1. Which scoring signals were most predictive of actual rugs?
+    2. Which signals generated false positives?
+    3. What patterns did you miss?
+    4. Recommended weight adjustments for the scoring engine.
+    
+    Be brutally honest. The goal is to improve, not to feel good.
