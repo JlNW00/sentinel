@@ -1,0 +1,11 @@
+[Unit]
+Description=Sentinel OpenClaw Agent
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/openclaw gateway start
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
