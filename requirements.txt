@@ -1,0 +1,21 @@
+# Sentinel Python Dependencies
+# Chain analysis & data
+solders>=0.21.0
+solana>=0.34.0
+httpx>=0.27.0
+aiohttp>=3.9.0
+
+# Neo4j
+neo4j>=5.25.0
+
+# LLM / Ollama
+ollama>=0.3.0
+
+# Data processing
+pandas>=2.2.0
+numpy>=1.26.0
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.9.0
+rich>=13.9.0
