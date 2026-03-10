@@ -1,0 +1,7 @@
+# Model Hierarchy Configuration
+primary:
+  provider: ollama
+  model: obliteratus
+escalation:
+  provider: claude
+  model: claude-sonnet-4-20250514
